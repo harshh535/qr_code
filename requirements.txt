@@ -1,8 +1,7 @@
 streamlit
-qrcode
-Pillow
-pyrebase4
-opencv-python-headless
+firebase-admin
+opencv-python
 numpy
-zbarlight
-setuptools
+pyrebase4
+Pillow
+
