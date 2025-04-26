@@ -1,53 +1,53 @@
+# generate.py
 import streamlit as st
-import qrcode, io, hashlib
+import qrcode, io, hashlib, requests
 from datetime import datetime
-import pyrebase
 
-st.set_page_config(page_title="Generate QR", layout="wide")
 st.title("🔧 Generate QR Code")
 
-# init pyrebase client from secrets
-firebase = pyrebase.initialize_app(st.secrets["firebase"])
-db = firebase.database()
+# grab your RTDB URL from secrets
+db_url = st.secrets["firebase"]["databaseURL"].rstrip("/")
 
 def checksum_of(text: str) -> str:
     return hashlib.md5(text.encode("utf-8")).hexdigest()
 
-def make_qr(text: str):
+def make_qr(content: str):
     qr = qrcode.QRCode(box_size=10, border=4)
-    qr.add_data(text)
+    qr.add_data(content)
     qr.make(fit=True)
     return qr.make_image(fill_color="black", back_color="white")
 
-content = st.text_input("Enter text to embed in QR:")
-
+content = st.text_input("Enter content for your QR code:")
 if st.button("Generate"):
-    if not content:
+    if not content.strip():
         st.error("Please enter some content.")
     else:
-        cs      = checksum_of(content)
-        qr_img  = make_qr(content)
+        cs = checksum_of(content)
+        img = make_qr(content)
 
         buf = io.BytesIO()
-        qr_img.save(buf, format="PNG")
+        img.save(buf, format="PNG")
         buf.seek(0)
 
         st.image(buf, caption="Generated QR", use_column_width=True)
         st.write("**Content:**", content)
         st.write("**Checksum:**", cs)
 
-        # push to RTDB
-        db.child("qr_checksums").push({
-            "content":   content,
-            "checksum":  cs,
+        # push to RTDB via its REST API
+        payload = {
+            "content": content,
+            "checksum": cs,
             "timestamp": datetime.utcnow().isoformat()
-        })
+        }
+        resp = requests.post(f"{db_url}/qr_checksums.json", json=payload)
+        if resp.ok:
+            st.success("✔️ Stored to Firebase!")
+        else:
+            st.error(f"❌ Failed: {resp.text}")
 
-        st.success("✅ Stored to Firebase!")
         st.download_button(
-            "📥 Download QR Code",
-            data=buf,
+            "Download QR as PNG",
+            data=buf.getvalue(),
             file_name="qr_code.png",
             mime="image/png"
         )
-
