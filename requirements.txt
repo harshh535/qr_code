@@ -2,11 +2,6 @@ streamlit
 firebase-admin
 opencv-python
 numpy
-pyrebase4
 Pillow
-zbarlight
-pyrebase
-gcloud
-setuptools
+pyzbar
 qrcode[pil]
-
