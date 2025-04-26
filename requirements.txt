@@ -4,5 +4,5 @@ Pillow
 pyrebase4
 opencv-python-headless
 numpy
-pyzbar
+zbarlight
 setuptools
