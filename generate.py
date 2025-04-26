@@ -3,89 +3,63 @@ import qrcode
 import io
 import hashlib
 from datetime import datetime
-import pyrebase
+import firebase_admin
+from firebase_admin import credentials, db
 
-# Firebase Configuration
-firebaseConfig = {
-    "apiKey": "AIzaSyA49nGgrsHWyEheb1BHWZYVUIdvPoe1a_0",
-    "authDomain": "attackprotectqr.firebaseapp.com",
-    "projectId": "attackprotectqr",
-    "storageBucket": "attackprotectqr.appspot.com",
-    "messagingSenderId": "176060142744",
-    "appId": "1:176060142744:web:ef980a43ff760832422ced",
-    "measurementId": "G-1YHE0ZV9KE",
-    "databaseURL": "https://attackprotectqr-default-rtdb.firebaseio.com/"
-}
-
-# Initialize Firebase once
+# ─ init Firebase once ─────────────────────────────────────────────────────────
 @st.cache_resource
-def init_firebase():
-    return pyrebase.initialize_app(firebaseConfig)
+def init_db():
+    sa = st.secrets["firebase"]
+    cred_dict = {k: v for k, v in sa.items() if k != "databaseURL"}
+    cred = credentials.Certificate(cred_dict)
+    firebase_admin.initialize_app(cred, {
+        "databaseURL": sa["databaseURL"]
+    })
+    return db.reference("qr_checksums")
 
-firebase = init_firebase()
-db = firebase.database()
+ref = init_db()
+# ──────────────────────────────────────────────────────────────────────────────
 
-def generate_qr_code(content: str):
-    qr = qrcode.QRCode(
-        version=1,
-        error_correction=qrcode.constants.ERROR_CORRECT_L,
-        box_size=10,
-        border=4,
-    )
-    qr.add_data(content)
+def checksum_of(text: str) -> str:
+    return hashlib.md5(text.encode("utf-8")).hexdigest()
+
+def make_qr(text: str):
+    qr = qrcode.QRCode(box_size=10, border=4)
+    qr.add_data(text)
     qr.make(fit=True)
     return qr.make_image(fill_color="black", back_color="white")
 
-def get_content_checksum(content: str) -> str:
-    """Compute checksum directly from the original text content."""
-    return hashlib.md5(content.encode('utf-8')).hexdigest()
+st.set_page_config(page_title="Generate QR", layout="wide")
+st.title("🔧 Generate QR Code")
 
-def generate_qr_page():
-    st.header("Generate QR Code")
+content = st.text_input("Enter text/content for your QR code:")
+if st.button("Generate"):
+    if not content.strip():
+        st.error("Please enter some content.")
+    else:
+        cs = checksum_of(content)
+        img = make_qr(content)
 
-    content = st.text_input("Enter content to encode in QR:")
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        buf.seek(0)
 
-    if st.button("Generate"):
-        if not content.strip():
-            st.error("Please enter some content.")
-            return
+        st.image(buf, caption="Generated QR", use_column_width=True)
+        st.write("**Content:**", content)
+        st.write("**Checksum:**", cs)
 
-        try:
-            # 1. Generate checksum from content
-            checksum = get_content_checksum(content)
+        # push to Firebase
+        ref.push({
+            "content": content,
+            "checksum": cs,
+            "timestamp": datetime.utcnow().isoformat()
+        })
 
-            # 2. Generate QR code from content (not from checksum)
-            qr_img = generate_qr_code(content)
+        st.success("✅ Stored to Firebase!")
+        st.download_button(
+            "📥 Download QR PNG",
+            data=buf,
+            file_name="qr_code.png",
+            mime="image/png"
+        )
 
-            # 3. Save image to bytes
-            img_bytes = io.BytesIO()
-            qr_img.save(img_bytes, format="PNG")
-            img_bytes.seek(0)
-
-            # 4. Display QR and info
-            st.image(img_bytes, caption="QR Code", use_column_width=True)
-            st.write("Content:", content)
-            st.write("Checksum (from content):", checksum)
-
-            # 5. Store in Firebase
-            db.child("qr_checksums").push({
-                "checksum": checksum,
-                "content": content,
-                "timestamp": datetime.utcnow().isoformat()
-            })
-
-            # 6. Download button
-            st.download_button(
-                label="Download QR Code",
-                data=img_bytes.getvalue(),
-                file_name="qr_code.png",
-                mime="image/png"
-            )
-
-            st.success("QR code generated with content and checksum saved!")
-
-        except Exception as e:
-            st.error(f"Error: {e}")
-
-if __name__ == "__main__":
-    generate_qr_page()
