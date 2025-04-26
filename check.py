@@ -3,7 +3,7 @@ from PIL import Image
 import hashlib
 import pyrebase
 import numpy as np
-import zbarlight
+import cv2
 
 # Firebase Configuration
 firebaseConfig = {
@@ -24,10 +24,14 @@ db = firebase.database()
 def get_content_checksum(content: str) -> str:
     return hashlib.md5(content.encode("utf-8")).hexdigest()
 
-def extract_qr_content_zbarlight(pil_img):
-    pil_img = pil_img.convert("L")  # Convert to grayscale as required by zbarlight
-    codes = zbarlight.scan_codes("qrcode", pil_img)
-    return codes[0].decode("utf-8") if codes else None
+def extract_qr_content_cv2(pil_img):
+    open_cv_image = np.array(pil_img.convert('RGB')) 
+    open_cv_image = open_cv_image[:, :, ::-1].copy()  # RGB to BGR
+
+    detector = cv2.QRCodeDetector()
+    data, vertices_array, _ = detector.detectAndDecode(open_cv_image)
+
+    return data if vertices_array is not None else None
 
 def check_qr():
     st.header("🧾 Upload QR Code Image")
@@ -40,9 +44,9 @@ def check_qr():
             img = Image.open(uploaded_img)
             st.image(img, caption="🖼️ Uploaded Image", use_column_width=True)
 
-            qr_content = extract_qr_content_zbarlight(img)
+            qr_content = extract_qr_content_cv2(img)
 
-            if qr_content is None:
+            if qr_content == "":
                 st.warning("⚠️ No QR code detected in the image.")
                 return
 
@@ -65,3 +69,4 @@ def check_qr():
 # Run the app
 if __name__ == "__main__":
     check_qr()
+
