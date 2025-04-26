@@ -5,3 +5,4 @@ numpy
 Pillow
 pyzbar
 qrcode[pil]
+pyrebase4
