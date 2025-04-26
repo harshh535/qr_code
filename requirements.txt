@@ -8,3 +8,5 @@ zbarlight
 pyrebase
 gcloud
 setuptools
+qrcode[pil]
+
