@@ -2,7 +2,7 @@ streamlit
 qrcode
 Pillow
 pyrebase4
-opencv-python
+opencv-python-headless
 numpy
 pyzbar
 setuptools
