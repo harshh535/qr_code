@@ -6,3 +6,4 @@ Pillow
 pyzbar
 qrcode[pil]
 pyrebase4
+setuptools 
