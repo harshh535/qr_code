@@ -1,6 +1,7 @@
 streamlit
-firebase-admin      # our Firebase SDK
-opencv-python-headless  # headless OpenCV with QRCodeDetector
+firebase-admin
+opencv-python-headless
 numpy
-Pillow              # for image loading
-qrcode              # for generate page
+Pillow
+qrcode
+
