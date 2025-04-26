@@ -5,9 +5,14 @@ import hashlib
 import requests
 from datetime import datetime
 
-# Grab RTDB URL from secrets
 DB_URL = st.secrets["firebase"]["databaseURL"].rstrip("/")
 
+def is_malicious(content):
+    resp = requests.get(f"{DB_URL}/malicious.json")
+    if resp.ok and resp.json():
+        data = resp.json()
+        return any(item.get("content") == content for item in data.values())
+    return False
 
 def generate_qr_page():
     st.header("🔧 Generate QR Code")
@@ -17,35 +22,40 @@ def generate_qr_page():
             st.error("Please enter some content.")
             return
 
-        # Compute checksum
+        if is_malicious(content):
+            st.error("🚫 This is a **malicious link**. QR generation blocked.")
+            return
+
         checksum = hashlib.md5(content.encode("utf-8")).hexdigest()
-        # Create QR image
+
+        # Create QR
         qr = qrcode.QRCode(box_size=10, border=4)
         qr.add_data(content)
         qr.make(fit=True)
         img = qr.make_image(fill_color="black", back_color="white")
 
-        # Display
+        # Save to buffer
         buf = io.BytesIO()
         img.save(buf, format="PNG")
         buf.seek(0)
+
+        # Show
         st.image(buf, caption="Generated QR Code", use_column_width=True)
         st.write("**Content:**", content)
         st.write("**Checksum:**", checksum)
 
-        # Push to Firebase RTDB via REST
-        payload = {"content": content, "checksum": checksum, "timestamp": datetime.utcnow().isoformat()}
+        # Save to Firebase
+        payload = {
+            "content": content,
+            "checksum": checksum,
+            "timestamp": datetime.utcnow().isoformat()
+        }
         resp = requests.post(f"{DB_URL}/qr_checksums.json", json=payload)
         if resp.ok:
             st.success("✅ Stored to Firebase!")
         else:
-            st.error(f"❌ Firebase error: {resp.text}")
+            st.error(f"Firebase error: {resp.status_code} {resp.text}")
 
-        # Download button
-        st.download_button(
-            label="Download QR PNG",
-            data=buf.getvalue(),
-            file_name="qr_code.png",
-            mime="image/png"
-        )
+        # Download option
+        st.download_button("📥 Download QR", data=buf.getvalue(), file_name="qr.png", mime="image/png")
 
